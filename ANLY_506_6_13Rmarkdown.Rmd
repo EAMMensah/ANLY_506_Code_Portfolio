@@ -1,0 +1,1830 @@
+---
+title: "RMarkdowm 6-13"
+author: "Ethel Mensah"
+date: "July 28, 2019"
+output: rmarkdown::github_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## This file covers various data exploratory analysis techniques including data import, data wrangling, data visualization, clustering(cluster analysis) and principal component analysis(PCA). Various methods/techniques are mployed in order to achieve or illustrate desired results. 
+## Data import is generally the first step in EDA, after which data wrangling or transformation is performed includingg data cleanup (i.e removing missing data). Data visualization is an important tool in understanding data and relationship between variables. Clustering is useful in grouping similar objects together. PCA uses orthogonal transformation methods to emphasize variations and bring out strong patterns in a dataset which makes it easy to explore and visualize the data.
+
+
+
+
+##              DATA IMPORT AND DATA WRANGLING
+
+##  5.1.1 installing required packages
+
+```{r}
+library(nycflights13)
+library(tidyverse)
+```
+## 5.1.2 exploring basic data manipulation of dplyr using nycflights::flights
+```{r}
+flights
+```
+## 5.2 Filtering rows with filter()
+```{r}
+jan1 <- filter(flights, month == 1, day == 1)
+jan1
+sqrt(2) ^ 2 == 2
+near(sqrt(2) ^ 2, 2)
+near(1/49*49, 1)
+```
+## 5.2.2 using logical operators
+```{r}
+filter(flights, month == 11 | month == 12)
+nov_dec <- filter(flights, month %in% c(11, 12))
+filter(flights, !(arr_delay > 120 | dep_delay >120))
+filter(flights, arr_delay <= 120, dep_delay <= 120)
+```
+## 5.2.3 Missing values
+```{r}
+NA > 5
+10 == NA
+NA + 10
+NA/2
+NA == NA
+x <- NA
+y <- NA
+x == y
+is.na(x)
+df <- tibble(x = c(1, NA, 3))
+filter(df, x > 1)
+```
+## 5.2.4 Exercises
+## 1. Find all flights that 
+##     1. Had an arrival delay of two or more hours
+```{r}
+filter(flights, arr_delay >= 120)
+```
+##     2. Flew to Houston(IAH or HOU)
+```{r}
+filter(flights, dest %in%c("IAH", "HOU"))
+```
+##     3. Were opertaed by United, American, or Delta
+```{r}
+filter(flights, carrier %in% c("AA", "DL", "UA"))
+```
+##     4. Departed in summer (July, August, and September)
+```{r}
+filter(flights, month %in% 7:9)
+```
+##     5. Arrived more than two hours late, but didnt leave late
+```{r}
+filter(flights, arr_delay > 120, dep_delay <= 0)
+```
+##     6. Were delayed at least an hour, but made up over 30 minutes in flight 
+```{r}
+filter(flights, dep_delay >= 60, (dep_delay - arr_delay > 30))
+```
+##     7. Departed between midnight and 6am (inclusive)
+```{r}
+filter(flights, dep_delay >= 2400 | dep_time <= 600)
+```
+## 2. Another useful dplyr filtering helper is between(). What does it do? Can you use it to simplify the code needed to answer the previous challenge 
+```{r}
+filter(flights, between(dep_time, 601, 2359))
+```
+## 3. How many flights have a missing dep_time? what other variables are missing? what might these rows represent?
+```{r}
+summary(flights)
+map_dbl(flights, ~ sum(is.na(.x)))
+```
+## From the above, we can 8225 flights. "arr_time"", "arr_delay", and "air_time" also have missing values
+
+## 4. Why is NA^0 not missing ? Why is NA|TRUE not missing? Why is False & NA not missing? Can you figure out the general rule? (NA*0 is a tricky counterexmaple)
+## The general rule is if one of the expressions in a logical test can be tested, then the results should not be N/A. 
+## '^0' will always be equals 1
+## NA|TRUE tests whether one of expressions being tested is true, specifically the second expression 
+## FALSE|NA, teh first expression is tested as not being TRUE. 
+## NA&NA, neither expressions can be tested and the results is NA
+
+## 5.3 Arrange rows with arrange()
+```{r}
+arrange(flights, year, month, day)
+```
+```{r}
+arrange(flights, desc(dep_delay))
+```
+```{r}
+df <- tibble(x = c(5,2,NA))
+arrange(df,x)
+```
+```{r}
+arrange(df, desc(x))
+```
+## 5.3.1 Exercises
+## 1. How could you use arrange() to sort all missing values to the start? (Hint: use is.na()).
+```{r}
+df <- tibble(x = c(5,2,NA),
+             y = c(2,NA,2))
+rowSums(df)
+arrange(df, desc(is.na(x)))
+arrange(df,-(is.na(x)))
+```
+## 2. Sort flights to find the most delayed flights. Find the flights that left earliest.
+```{r}
+arrange(flights, desc(dep_delay))
+arrange(flights, dep_delay)
+```
+## 3. Sort flights to find the fastest flights.
+```{r}
+arrange(flights, air_time)
+```
+## 4. Which flights travelled the longest? Which travelled the shortest?
+## To find the longest flight 
+```{r}
+arrange(flights, desc(distance)) %>% select(1:5, distance)
+```
+## 5.4. Select columns with select
+```{r}
+select(flights, year, month, day)
+```
+```{r}
+select(flights, year:day)
+```
+```{r}
+select(flights, -(year:day))
+```
+```{r}
+rename(flights, tail_num = tailnum)
+```
+```{r}
+select(flights, time_hour, air_time, everything())
+```
+
+## 5.4.1 Exercises
+## 1. Brainstorm as many ways as possible to select dep_time, dep_delay, arr_time, and arr_delay from flights.
+```{r}
+select(flights, c(dep_time, arr_time, arr_delay, dep_delay))
+flights %>% select_("dep_time", "arr_time", "arr_delay", "dep_delay")
+flights %>% select(matches("^dep|arr_time$|delay$"))
+flights %>% select(matches("^dep|^arr"))
+flights %>% select(dep_time, arr_time, arr_delay, dep_delay)
+flights %>% select(matches("^dep|arr_delay|time$"))
+flights %>% select(contains("dep"), contains("arr"), -contains("sched"), -carrier)
+flight_det <- c("dep_time", "arr_time", "arr_delay", "dep_delay")
+select(flights, .dots = flight_det)
+```
+
+## 2. What happens if you include the name of a variable multiple times in a select() call?
+```{r}
+select(flights, dep_time, dep_time)
+```
+## From the above, it seems including a variable name more than once does not impact the slect call as the variable is only returned once.
+
+## 3. What does the one_of() function do? Why might it be helpful in conjunction with this vector? vars <- c("year", "month", "day", "dep_delay", "arr_delay")
+```{r}
+vars <- c("month", "dep_delay", "arr_delay", "year", "day")
+flights %>% select(one_of(vars))
+```
+## From the above, all the variables in the list are returned.
+
+## 4. Does the result of running the following code surprise you? How do the select helpers deal with case by default? How can you change that default select(flights, contains("TIME"))
+```{r}
+select(flights, contains("TIME"))
+```
+```{r}
+select(flights, contains("TIME", ignore.case = FALSE))
+```
+## Deafult helpers are insensitive to case of variables. Using ignore.case helps to solve for that 
+
+## 5.5 Add new variables with mutate
+```{r}
+flights_sml <- select(flights, year:day, 
+                      ends_with("delay"),
+                      distance,
+                      arr_time
+)
+mutate(flights_sml, 
+      gain = dep_delay - arr_delay,
+      speed = distance / arr_time * 60
+)
+```
+```{r}
+transmute(flights,
+          gain = dep_delay - arr_delay,
+          hours = air_time / 60,
+          gain_per_hour = gain / hours
+)
+```
+## 5.5.1 Useful creation functions 
+```{r}
+transmute(flights, 
+          dep_time,
+          hour = dep_time %/% 100,
+          minute = dep_time %%100
+          )
+```
+```{r}
+(x <- 1:10)
+lag(x)
+lead(x)
+```
+
+```{r}
+cumsum(x)
+cummean(x)
+```
+```{r}
+y <- c(1,2,2,NA,3,4)
+min_rank(y)
+min_rank(desc(y))
+```
+```{r}
+row_number(y)
+dense_rank(y)
+percent_rank(y)
+cume_dist(y)
+```
+## 5.5.2 Exercises
+## 1. Currently dep_time and sched_dep_time are convenient to look at, but hard to compute with because they're not really continuous numbers. Convert them to a more convenient representation of number of minutes since midnight.
+```{r}
+mins <- function(x){
+  x %/% 100 * 60 + x %% 100
+}
+mutate(flights, 
+       dep_time = mins(dep_time),
+       sched_dep_time = mins(sched_dep_time)
+       )
+```
+
+## 2. Compare air_time with arr_time - dep_time. What do you expect to see? What do you see? What do you need to do to fix it?
+```{r}
+flights %>%
+  mutate(dep_time = (dep_time %/% 100) * 60 + (dep_time %% 100),
+         sched_dep_time = (sched_dep_time %/% 100) * 60 + (sched_dep_time %% 100),
+         arr_time = (arr_time %/% 100) * 60 + (arr_time %% 100),
+         sched_arr_time = (sched_arr_time %/% 100) * 60 + (sched_arr_time %% 100)) %>%
+  transmute((arr_time - dep_time) %% (60*24) - air_time)
+``` 
+
+
+## 3. Compare dep_time, sched_dep_time, and dep_delay. How would you expect those three numbers to be related?
+```{r}
+mins <- function(x){
+  x %/% 100 * 60 + x %% 100
+  
+}
+select(flights, contains ("dep")) %>%
+  mutate(dep_timee_na = mins(dep_time) - mins(sched_dep_time))
+```
+## There is a discrepancy in the values bring reported because flights with different departure times are not being counted. To solve for this, we use filter 
+```{r}
+select(flights, contains ("dep")) %>%
+  mutate(dep_time_na = mins(dep_time) - mins(sched_dep_time)) %>%
+  filter(dep_delay != dep_time_na) %>%
+  mutate(dep_time_na = mins(dep_time) - mins(sched_dep_time - 2400))
+```
+## From the baove, we can see the values are now the same 
+  
+
+## 4. Find the 10 most delayed flights using a ranking function. How do you want to handle ties? Carefully read the documentation for min_rank().
+```{r}
+flights %>%
+  filter(min_rank(-(dep_delay)) %in% 1:10)
+flights %>%
+  top_n(10, dep_delay)
+```
+
+## 5. What does 1:3 + 1:10 return? Why?
+```{r}
+ t <- 1:3 + 1:10
+t
+```
+## This returns an array of variables 1 through 11.
+
+## 6. What trigonometric functions does R provide?
+## The trig functions  R provides includes cos(x), sin(x), tan(x), acos(x), asin(x), atan(x), atan2(y,x), cospi(x), sinpi(x) and tanpi(x)
+
+## 5.6 Grouped summaries with summarise()
+```{r}
+summarise(flights, delay = mean(dep_delay, na.rm = TRUE))
+by_day <- group_by(flights, year, month, day)
+summarise(by_day, delay = mean(dep_delay, na.rm = TRUE))
+```
+## 5.6.1 Combining multiple operations with the pipe 
+```{r}
+by_dest <- group_by(flights, dest)
+delay <- summarise(by_dest,
+  count = n(),
+  dist = mean(distance, na.rm = TRUE),
+  delay = mean(arr_delay, na.rm = TRUE)
+)
+delay <- filter(delay, count > 20, dest != "HNL")
+ggplot(data = delay, mapping = aes(x = dist, y = delay)) +
+  geom_point(aes(size = count), alpha = 1/3) +
+  geom_smooth(se = FALSE)
+```
+## 5.6.2 Missing values 
+```{r}
+flights %>% 
+  group_by(year, month, day) %>% 
+  summarise(mean = mean(dep_delay))
+```
+```{r}
+flights %>% 
+  group_by(year, month, day) %>% 
+  summarise(mean = mean(dep_delay, na.rm = TRUE))
+```
+```{r}
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay))
+
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(mean = mean(dep_delay))
+```
+## 5.6.3 Counts
+```{r}
+delays <- not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(
+    delay = mean(arr_delay)
+  )
+
+ggplot(data = delays, mapping = aes(x = delay)) + 
+  geom_freqpoly(binwidth = 10)
+```
+```{r}
+delays <- not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(
+    delay = mean(arr_delay, na.rm = TRUE),
+    n = n()
+  )
+
+ggplot(data = delays, mapping = aes(x = n, y = delay)) + 
+  geom_point(alpha = 1/10)
+```
+```{r}
+delays %>% 
+  filter(n > 25) %>% 
+  ggplot(mapping = aes(x = n, y = delay)) + 
+    geom_point(alpha = 1/10)
+```
+## Installing Lahman package
+```{r}
+install.packages("Lahman", repos = "http://cran.us.r-project.org")
+library(Lahman)
+```
+```{r}
+data("LahmanData")
+str(LahmanData)
+```
+```{r}
+batting <- as_tibble(Lahman::Batting)
+batters <- batting %>% 
+  group_by(playerID) %>% 
+  summarise(
+    ba = sum(H, na.rm = TRUE) / sum(AB, na.rm = TRUE),
+    ab = sum(AB, na.rm = TRUE)
+  )
+batters %>% 
+  filter(ab > 100) %>% 
+  ggplot(mapping = aes(x = ab, y = ba)) +
+    geom_point() + 
+    geom_smooth(se = FALSE)
+```
+```{r}
+batters %>% 
+  arrange(desc(ba))
+```
+## 5.6.4 Useful Summary functions 
+```{r}
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(
+    avg_delay1 = mean(arr_delay),
+    avg_delay2 = mean(arr_delay[arr_delay > 0]) # the average positive delay
+  )
+```
+## Why distance to some destinations is more variable than others 
+```{r}
+not_cancelled %>% 
+  group_by(dest) %>% 
+  summarise(distance_sd = sd(distance)) %>% 
+  arrange(desc(distance_sd))
+```
+```{r}
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(
+    first = min(dep_time),
+    last = max(dep_time)
+  )
+```
+## When the first and last flights leave each other 
+```{r}
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(
+    first_dep = first(dep_time), 
+    last_dep = last(dep_time)
+  )
+```
+```{r}
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  mutate(r = min_rank(desc(dep_time))) %>% 
+  filter(r %in% range(r))
+```
+## Destinations with the most carriers
+```{r}
+not_cancelled %>% 
+  group_by(dest) %>% 
+  summarise(carriers = n_distinct(carrier)) %>% 
+  arrange(desc(carriers))
+```
+```{r}
+not_cancelled %>%
+  count(dest)
+```
+## Total number of miles flown by planes
+```{r}
+not_cancelled %>% 
+  count(tailnum, wt = distance)
+```
+## Number of flights before 5am
+```{r}
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(n_early = sum(dep_time < 500))
+```
+## Proportion of flights delayed more than 1 hour 
+```{r}
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(hour_perc = mean(arr_delay > 60))
+```
+## Grouping my multiple variables
+```{r}
+daily <- group_by(flights, year, month, day)
+(per_day   <- summarise(daily, flights = n()))
+```
+## By month
+```{r}
+(per_month <- summarise(per_day, flights = sum(flights)))
+```
+## By Year 
+```{r}
+(per_year  <- summarise(per_month, flights = sum(flights)))
+```
+## 5.6.6 Ungrouping 
+```{r}
+daily %>% 
+  ungroup() %>%             # no longer grouped by date
+  summarise(flights = n())
+```
+## 5.6.7 Exercises
+## 1. Brainstorm at least 5 different ways to assess the typical delay characteristics of a group of flights. Consider the following scenarios:
+```{r}
+flight_delay <- flights %>%
+  group_by(flight) %>%
+  summarise(n = n(),
+            fifteen_early = mean(arr_delay == -15, na.rm = T),
+            fifteen_late = mean(arr_delay == 15, na.rm = T),
+            mins_10 = mean(arr_delay == 10, na.rm = T),
+            thirty_early = mean(arr_delay == -30, na.rm = T),
+            thirty_late = mean(arr_delay == 30, na.rm = T),
+            percentage_on_time = mean(arr_delay == 0, na.rm = T),
+            two_hours = mean(arr_delay > 120, na.rm = T)) %>%
+  map_if(is_double, round, 2) %>%
+  as_tibble()
+```
+
+## 1.a) A flight is 15 minutes early 50% of the time, and 15 minutes late 50% of the time.
+```{r}
+flight_delay %>% filter(fifteen_early == 0.5 & fifteen_early == 0.5)
+```
+
+## 1.b) A flight is always 10 minutes late.
+```{r}
+flight_delay %>%
+  filter(mins_10 == 1)
+```
+## 1.c) A flight is 30 minutes early 50% of the time, and 30 minutes late 50% of the time.
+```{r}
+flight_delay %>%
+  filter(thirty_early == 0.5 & thirty_late == 0.5)
+```
+
+## 1.d) 99% of the time a flight is on time. 1% of the time it's 2 hours late.
+```{r}
+flight_delay %>%
+  filter(percentage_on_time == 0.99 & two_hours == 0.01)
+```
+
+## Which is more important: arrival delay or departure delay?
+## In my opinion, departure delay is more important as there are ripple efforts
+
+## 2. Come up with another approach that will give you the same output as not_cancelled %>% count(dest) and not_cancelled %>% count(tailnum, wt = distance) (without using count()).
+```{r}
+not_cancelled <- filter(flights, !is.na(dep_delay), !is.na(arr_delay))
+not_cancelled %>%
+  group_by(dest) %>%
+  tally()
+not_cancelled %>%
+  group_by(tailnum) %>%
+  summarise(n = sum(distance))
+```
+## Using 'group_by` and `summarise` instead of `count` is especially useful for more complex countries 
+
+## 3. Our definition of cancelled flights (is.na(dep_delay) | is.na(arr_delay) ) is slightly suboptimal. Why? Which is the most important column?
+## Since no flights arrived that did not depart, we can use  `!is.na(dep_delay`)
+
+## 4.4 Look at the number of cancelled flights per day. Is there a pattern? Is the proportion of cancelled flights related to the average delay?
+```{r}
+flights %>%
+  mutate(dep_date = lubridate::make_datetime(year, month, day)) %>%
+  group_by(dep_date) %>%
+  summarise(cancelled = sum(is.na(dep_delay)),
+            n = n(),
+            mean_dep_delay = mean(dep_delay, na.rm = T),
+            mean_arr_delay = mean(arr_delay, na.rm = T)) %>%
+  ggplot(aes(x= cancelled/n)) +
+  geom_point(aes(y=mean_dep_delay), colour='blue',alpha=0.5) +
+  geom_point(aes(y=mean_arr_delay), colour='red', alpha=0.5) +
+  ylab('mean delay(minutes)')
+```
+## From the above, there is a positive relationship betwen aeverage time of delay and flight cancellation
+
+## 5. Which carrier has the worst delays? Challenge: can you disentangle the effects of bad airports vs. bad carriers? Why/why not? (Hint: think about flights %>% group_by(carrier, dest) %>% summarise(n()))
+```{r}
+flights %>%
+  group_by(carrier) %>%
+  summarise(dep_max = max(dep_delay, na.rm = T),
+            arr_max = max(arr_delay, na.rm = T)) %>%
+  arrange(desc(dep_max, arr_max)) %>%
+  filter(1:n() == 1)
+```
+```{r}
+flights %>%
+  summarise(n_distinct(carrier),
+            n_distinct(origin),
+            n_distinct(dest))
+```
+## 6. What does the sort argument to count() do. When might you use it?
+## The sort argument is used to sort values based on count
+
+## 5.7.1 Exercises
+## 1. Refer back to the lists of useful mutate and filtering functions. Describe how each operation changes when you combine it with grouping.
+## 2. Which plane (tailnum) has the worst on-time record?
+```{r}
+flights %>%
+  filter(!is.na(arr_delay)) %>%
+  group_by(tailnum) %>%
+  summarise(prop_time = sum(arr_delay <= 30)/n(),
+            mean_arr = mean(arr_delay, na.rm = T),
+            fl = n()) %>% 
+  arrange(desc(prop_time))
+```
+
+## 3. What time of day should you fly if you want to avoid delays as much as possible
+```{r}
+flights %>%
+  group_by(hour) %>%
+  summarise(m = mean(dep_delay, na.rm = T),
+            sd = sd(dep_delay, na.rm = T),
+            low_ci = m -2*sd,
+            high_ci = m + 2*sd,
+            n = n()) %>%
+  ggplot(aes(hour, m, ymin = low_ci, ymax = high_ci)) +
+  geom_pointrange()
+```
+
+## 4. For each destination, compute the total minutes of delay. For each flight, compute the proportion of the total delay for its destination.
+```{r}
+flights %>%
+  group_by(dest) %>%
+  filter(!is.na(dep_delay)) %>%
+  summarise(tot_mins = sum(dep_delay[dep_delay > 0]))
+flights %>%
+  filter(!is.na(dep_delay)) %>%
+  group_by(tailnum, dest) %>%
+  summarise(m = mean(dep_delay > 0), n = n()) %>%
+  arrange(desc(m))
+```
+
+## 5. Delays are typically temporally correlated: even once the problem that caused the initial delay has been resolved, later flights are delayed to allow earlier flights to leave. Using lag(), explore how the delay of a flight is related to the delay of the immediately preceding flight.
+```{r}
+flights %>%
+  mutate(new_sched_dep_time = lubridate::make_datetime(year, month, day, hour, minute)) %>%
+  arrange(new_sched_dep_time) %>%
+  mutate(prev_time = lag(dep_delay)) %>%
+  # filter(between(dep_delay, 0, 300), between(prev_time, 0, 300)) %>% # play with this one
+  select(origin, new_sched_dep_time, dep_delay, prev_time) %>%
+  ggplot(aes(dep_delay, prev_time)) + geom_point(alpha = 1/10) +
+  geom_smooth()
+```
+## 6. Look at each destination. Can you find flights that are suspiciously fast? (i.e. flights that represent a potential data entry error). Compute the air time a flight relative to the shortest flight to that destination. Which flights were most delayed in the air?
+```{r}
+flights %>%
+  mutate(new_sched_dep_time = lubridate::make_datetime(year, month, day, hour, minute)) %>%
+  group_by(origin) %>%
+  arrange(new_sched_dep_time) %>%
+  mutate(prev_flight_dep_delay = lag(dep_delay)) %>%
+  lm(dep_delay ~ prev_flight_dep_delay,.) %>% summary()
+```
+
+## 7. Find all destinations that are flown by at least two carriers. Use that information to rank the carriers.
+```{r}
+flights %>%
+  group_by(dest) %>%
+  filter(n_distinct(carrier) > 2) %>%
+  group_by(carrier) %>%
+  summarise(n = n_distinct(dest)) %>%
+  arrange(-n)
+```
+
+## 8. For each plane, count the number of flights before the first delay of greater than 1 hour.
+```{r}
+flights %>%
+    mutate(dep_date = lubridate::make_datetime(year, month, day)) %>%
+    group_by(tailnum) %>%
+    arrange(dep_date) %>%
+    filter(!cumany(arr_delay>60)) %>%
+    tally(sort = TRUE)
+```
+
+
+
+##              DATA VISUALIZATION
+## 3.1.1 Prerequisites - installing libraries
+```{r}
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+```
+## 3.2 First steps 
+## 3.2.1 The mpg dataframe
+```{r}
+mpg
+```
+## 3.2.2 Creating  ggplot 
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+```
+## 3.2.4 Exercises
+## 1. Run ggplot(data = mpg). What do you see?
+```{r}
+ggplot(data = mpg)
+```
+## There is no actual plot but a canvas is available
+## 2. How many rows are in mpg? How many columns?
+```{r}
+dim(mpg)
+```
+## The mpg dataset has 234 rows and 11 columns
+
+## 3. What does the drv variable describe? Read the help for ?mpg to find out.
+```{r}
+?mpg
+```
+## dr decribes whether the car is a front, rear or all wheel drive  f = front-wheel drive, r = rear wheel drive, 4 = 4wd
+
+## 4. Make a scatterplot of hwy vs cyl.
+```{r}
+ggplot(mpg) + geom_point(aes(hwy, cyl))
+```
+## 5. What happens if you make a scatterplot of class vs drv? Why is the plot not useful?
+```{r}
+ggplot(mpg) + geom_point(aes(class, drv))
+```
+## This plot is not useful as it does not reveal a pattern since both class and drv are both caterogircal variables
+
+## 3.3 Aesthetic amppings
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = class))
+```
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, size = class))
+```
+```{r}
+# Left
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, alpha = class))
+
+# Right
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, shape = class))
+```
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy), color = "blue")
+```
+## 3.3.1
+## 1. What's gone wrong with this code? Why are the points not blue?
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = "blue"))
+```
+## The points are not blue because color = blue is declared outside of aes. The correct code to show blue points is
+```{r}
+ggplot(data = mpg) + geom_point(mapping = aes(x = displ, y = hwy), color = "blue")
+```
+
+## 2. Which variables in mpg are categorical? Which variables are continuous? (Hint: type ?mpg to read the documentation for the dataset). How can you see this information when you run mpg?
+```{r}
+?mpg
+head(mpg, 1)
+```
+## Categorical variables: class, trans, drv, model, fl, manufacturer, cyl
+## Continuous variables: hwy, year, displ, cty
+
+## 3. Map a continuous variable to color, size, and shape. How do these aesthetics behave differently for categorical vs. continuous variables?
+```{r}
+ggplot(data = mpg) + geom_point(mapping = aes(x = displ, y = hwy, color = cyl, size = hwy, shape = drv))
+```
+
+## 4. What happens if you map the same variable to multiple aesthetics?
+## The various layers mapped are shown
+
+## 5. What does the stroke aesthetic do? What shapes does it work with? (Hint: use ?geom_point)
+## Stroke adjuts the width and border of certain shapes and points
+```{r}
+ggplot(data = mpg) + geom_point(aes(x = cty, y = hwy, stroke = displ), shape = 17)
+```
+
+## 6. What happens if you map an aesthetic to something other than a variable name, like aes(colour = displ < 5)? Note, you'll also need to specify x and y.
+## It will be plotted with a True or False colour agrument 
+```{r}
+ggplot(data = mpg) + geom_point(mapping = aes(x = displ, y = hwy, colour = displ < 5))
+```
+## 3.4 Commomn problems 
+```{r}
+ggplot(data = mpg) + geom_point(mapping = aes(x = displ, y = hwy))
+```
+## In the original example, we are unable to plot the dta, however by moving the second line of code to the first, we are able to plot the data
+
+## 3.5 Facets
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_wrap(~ class, nrow = 2)
+```
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_grid(drv ~ cyl)
+```
+## 3.5.1 Exercises
+
+## 1. What happens if you facet on a continuous variable?
+## The continuous variables are plotted, one row or column for each unique value
+
+## 2. What do the empty cells in plot with facet_grid(drv ~ cyl) mean? How do they relate to this plot?
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = drv, y = cyl))
+```
+## Empty cells in the plot show there were no combinations for those data points
+
+## 3. What plots does the following code make? What does . do?
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ .)
+
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(. ~ cyl)
+```
+## . serves as a placeholder, in case of a one-sided formulae so that that facet can be shown in one dimension.
+
+## 4. Take the first faceted plot in this section:
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_wrap(~ class, nrow = 2)
+```
+#What are the advantages to using faceting instead of the colour aesthetic? What are the disadvantages? How might the balance change if you had a larger dataset?
+
+## More facets will be needed if there are more than dozen discrete colours. To balance this out, we may want to use colours instead.
+
+## 5. Read ?facet_wrap. What does nrow do? What does ncol do? What other options control the layout of the individual panels? Why doesn't facet_grid() have nrow and ncol arguments?
+```{r}
+?facet_wrap
+```
+## nrow, ncol tells us the number of rows and columns. For facet_grid, the variables in the faceting grid are specified so no need for ncol and nrow.
+
+## 6. When using facet_grid() you should usually put the variable with more unique levels in the columns. Why?
+## If the unique variables are not in the columns, we will be able unable to read the graph since screens generally tend to be wide rather than long.
+
+## 3.6 Geometric objects
+```{r}
+# left
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+
+# right
+ggplot(data = mpg) + 
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+```
+```{r}
+ggplot(data = mpg) + 
+  geom_smooth(mapping = aes(x = displ, y = hwy, linetype = drv))
+```
+```{r}
+ggplot(data = mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+              
+ggplot(data = mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, group = drv))
+    
+ggplot(data = mpg) +
+  geom_smooth(
+    mapping = aes(x = displ, y = hwy, color = drv),
+    show.legend = FALSE
+  )
+```
+## displaying multiples geoms  in the same plot
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+```
+
+## 3.6.1 Exercises
+## 1. What geom would you use to draw a line chart? A boxplot? A histogram? An area chart?
+## geom_line is used to draw a line in a chart. A simple line chart is shown below
+```{r}
+mpg %>%
+  group_by(year) %>%
+  summarise(m = mean(cty)) %>%
+  ggplot(aes(year, m)) + 
+  geom_line()
+```
+## 2. Run this code in your head and predict what the output will look like. Then, run the code in R and check your predictions.
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = drv)) + 
+  geom_point() + 
+  geom_smooth(se = FALSE)
+```
+## The plot shows cars that have our wheel drives tend to have lower mpg than rear wheel and forward wheel drives respectively.
+
+## 3. What does show.legend = FALSE do? What happens if you remove it? Why do you think I used it earlier in the chapter? 
+## This argument removes the legend and makes the grpah much cleaner. 
+
+## 4. What does the se argument to geom_smooth() do?
+## This argument specifies whether to add a transculent background to the graph and also show the confidence level.
+
+## 5. Will these two graphs look different? Why/why not?
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point() + 
+  geom_smooth()
+
+ggplot() + 
+  geom_point(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_smooth(data = mpg, mapping = aes(x = displ, y = hwy))
+```
+## There is no noticeable difference between the two graphs. Data and mapping in geom ggplot accomplish the same goal
+
+## 6. Recreate the R code necessary to generate the following graphs.
+```{r}
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(fill = drv), shape = 21, stroke = 2, colour = "white", size = 3)
+```
+```{r}
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  geom_smooth(se = F)
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point() +
+  geom_smooth(aes(group = drv), se = F)
+```
+ 
+## 3.7.1 Excercises
+## 1. What is the default geom associated with stat_summary()? How could you rewrite the previous plot to use that geom function instead of the stat function?
+```{r}
+ggplot(diamonds) +
+  geom_pointrange(aes(cut, depth, ymin = depth, ymax = depth))
+```
+
+## 2. What does geom_col() do? How is it different to geom_bar()?
+## geom_col allows you to plot x varibales against y variables. geom_bar() does similar except in this case, with count and prop
+
+## 3. Most geoms and stats come in pairs that are almost always used in concert. Read through the documentation and make a list of all the pairs. What do they have in common?
+## geom_area(stat="bin"), geom_bar(stat="identity")
+
+## 4. What variables does stat_smooth() compute? What parameters control its behaviour?
+## stat_smooth() computes values including 'glm','lowess' as well as the y and predicted y values for the corresponding x values
+
+## 5. In our proportion bar chart, we need to set group = 1. Why? In other words what is the problem with these two graphs?
+```{r}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, y = ..prop..))
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = color, y = ..prop..))
+```
+## Setting group = 1 aloows us to get the proportions of each level of cut relative to all levels of cut i.e each level of cut is considered separately. Otherwise proportion will always be 100% in all cases
+
+## 3.8.1 Exercises
+## 1. What is the problem with this plot? How could you improve it?
+```{r}
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_point()
+```
+## The points are discrete and overlap. The problem can be fixed using geom_jitter()
+
+## 2. What parameters to geom_jitter() control the amount of jittering?
+## Height and width
+
+## 3. Compare and contrast geom_jitter() with geom_count().
+## geom_jitter() and geom_count() accomplish the same goal by controlling the size of each point. geom_count() increases the size of points and geon_jitter() makes them clearly visible 
+
+## 4. What's the default position adjustment for geom_boxplot()? Create a visualisation of the mpg dataset that demonstrates it.
+## The default position adjustment is dodge
+```{r}
+ggplot(data = mpg, mapping = aes(x = class, y = displ)) + 
+  geom_boxplot(aes(colour = drv))
+```
+
+## 3.9.1 Exercises
+## 1. Turn a stacked bar chart into a pie chart using coord_polar().
+## Bar chart for diamonds dataset
+```{r}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity), width = 2)
+```
+## Turning the bar chart above into a pie chart using coord_polar()
+```{r}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity), width = 2) +coord_polar()
+```
+
+## 2. What does labs() do? Read the documentation.
+```{r}
+?labs
+```
+## labs() helps us to modify axis, legend and plot labels
+
+## 3. What's the difference between coord_quickmap() and coord_map()?
+## coord_quickmap() plots using approximation of longitude and latitude ratio without transforming all geoms
+## coord_map() helps eliminates grid lines and fits the map. It uses 2D projection but requires transformation of all geoms
+
+## 4. What does the plot below tell you about the relationship between city and highway mpg? Why is coord_fixed() important? What does geom_abline() do?
+```{r}
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point() + 
+  geom_abline() +
+  coord_fixed()
+```
+## There is a positive relationship between city and highway mpg. Coord_fixed() creates a coordinate system with specified aspect ratio. Is ensures the length of units on the x and y axes are the same.geom_abline() gives the x=y line on a graph.
+
+
+
+
+##            PLOTTING SYSTEMS
+## 7.1 Base plotting system 
+## scatterplot with loess curve
+```{r}
+data(airquality)
+with(airquality,{
+        plot(Temp, Ozone)
+        lines(loess.smooth(Temp, Ozone))
+})
+```
+## An typical base plot
+```{r}
+data(cars)
+with(cars, plot(speed, dist))
+title("Speed vs. Stopping distance")
+```
+## 7.2 The Lattice System
+```{r}
+library(lattice)
+state <- data.frame(state.x77, region = state.region)
+xyplot(Life.Exp ~ Income | region, data = state, layout = c(4, 1))
+```
+## 7.3 The ggplot2 system
+```{r}
+install.packages("ggplot2")
+library(ggplot2)
+data(mpg)
+qplot(displ, hwy, data = mpg)
+```
+## 8. Graphics devices
+## 8.1 Making a plot with plot()
+```{r}
+## Make plot appear on screen device
+with(faithful, plot(eruptions, waiting)) 
+ 
+## Annotate with a title
+title(main = "Old Faithful Geyser data") 
+```
+```{r}
+library(datasets)
+ ## Open PDF device; create 'myplot.pdf' in my working directory
+# pdf(file = "myplot.pdf")  
+## Create plot and send to a file (no plot appears on screen)
+with(faithful, plot(eruptions, waiting))  
+## Annotate plot; still nothing on screen
+title(main = "Old Faithful Geyser data")  
+## Close the PDF file device
+dev.off()  
+## Now you can view the file 'myplot.pdf' on your computer
+```
+## 8.5 Copying plots
+```{r}
+library(datasets)
+## Create plot on screen device
+with(faithful, plot(eruptions, waiting))  
+ ## Add a main title
+title(main = "Old Faithful Geyser data")  
+## Copy my plot to a PNG file
+dev.copy(png, file = "geyserplot.png")  
+## Don't forget to close the PNG device!
+dev.off() 
+```
+
+
+##            CLUSTER ANALYSIS
+
+## installing required packages
+```{r}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+```
+```{r}
+df <- data.frame(USArrests)
+```
+## Omitting missing values
+```{r}
+df <- na.omit(df)
+```
+## scaling and standardizing the data
+```{r}
+df <- scale(df)
+head(df)
+```
+## Visualizing a distance matrix
+```{r}
+distance <- get_dist(df)
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+```
+## Computing K-means clustering 
+```{r}
+k2 <- kmeans(df, centers = 2, nstart = 25)
+str(k2)
+```
+## K-means cluster with 2 clusters o sizes 20, 30
+```{r}
+k2
+```
+## Plotting the clusters
+```{r}
+fviz_cluster(k2, data = df)
+```
+## Alternate use of scatterplots to  illustrate clusters
+```{r}
+df %>%
+  as_tibble() %>%
+  mutate(cluster = k2$cluster,
+         state = row.names(USArrests)) %>%
+  ggplot(aes(UrbanPop, Murder, color = factor(cluster), label = state )) +
+  geom_text()
+```
+## Combining the steps performed above
+```{r}
+k3 <- kmeans(df, centers = 3, nstart = 25)
+k4 <- kmeans(df, centers = 4, nstart = 25)
+k5 <- kmeans(df, centers = 5, nstart = 25)
+
+# plots to compare
+p1 <- fviz_cluster(k2, geom = "point", data = df) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point",  data = df) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point",  data = df) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point",  data = df) + ggtitle("k = 5")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+## Finding the optimal number of clusters
+```{r}
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(df, k, nstart = 10 )$tot.withinss
+}
+
+# Compute and plot wss for k = 1 to k = 15
+k.values <- 1:15
+
+# extract wss for 2-15 clusters
+wss_values <- map_dbl(k.values, wss)
+
+plot(k.values, wss_values,
+       type="b", pch = 19, frame = FALSE, 
+       xlab="Number of clusters K",
+       ylab="Total within-clusters sum of squares")
+```
+## Using the "Elbow method"
+```{r}
+set.seed(123)
+fviz_nbclust(df, kmeans, method = "wss")
+```
+# Computing the silhouette for k clusters
+```{r}
+# function to compute average silhouette for k clusters
+avg_sil <- function(k) {
+  km.res <- kmeans(df, centers = k, nstart = 25)
+  ss <- silhouette(km.res$cluster, dist(df))
+  mean(ss[, 3])
+}
+
+# Compute and plot wss for k = 2 to k = 15
+k.values <- 2:15
+
+# extract avg silhouette for 2-15 clusters
+avg_sil_values <- map_dbl(k.values, avg_sil)
+
+plot(k.values, avg_sil_values,
+       type = "b", pch = 19, frame = FALSE, 
+       xlab = "Number of clusters K",
+       ylab = "Average Silhouettes")
+```
+## computing the average silhoutte method
+```{r}
+fviz_nbclust(df, kmeans, method = "silhouette")
+```
+## computing the gap statistic
+```{r}
+set.seed(123)
+gap_stat <- clusGap(df, FUN = kmeans, nstart = 25,
+                    K.max = 10, B = 50)
+# Print the result
+print(gap_stat, method = "firstmax")
+```
+## Extracting the results
+```{r}
+# Compute k-means clustering with k = 4
+set.seed(123)
+final <- kmeans(df, 4, nstart = 25)
+print(final)
+```
+## Visualizing the results usinf fviz_cluster
+```{r}
+fviz_cluster(final, data = df)
+```
+## Extracting the clusters
+```{r}
+USArrests %>%
+  mutate(Cluster = final$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+```
+
+##      HIERACHICAL CLUSTER ANALYSIS
+## Loading required packages
+```{r}
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering visualization
+install.packages("prabclus")
+library(prabclus)
+install.packages("dendextend")
+library(dendextend) # for comparing two dendrograms
+```
+```{r}
+df <- data.frame(USArrests)
+```
+## Omitting missing values
+```{r}
+df <- na.omit(df)
+```
+## scaling and standardizing the data
+```{r}
+df <- scale(df)
+head(df)
+```
+## Agglomerative hierarchical clustering 
+```{r}
+# Dissimilarity matrix
+d <- dist(df, method = "euclidean")
+
+# Hierarchical clustering using Complete Linkage
+hc1 <- hclust(d, method = "complete" )
+
+# Plot the obtained dendrogram
+plot(hc1, cex = 0.6, hang = -1)
+```
+## Computing using the Agnes function 
+```{r}
+# Compute with agnes
+hc2 <- agnes(df, method = "complete")
+# Agglomerative coefficient
+hc2$ac
+```
+## Using Ward's methods
+```{r}
+# methods to assess
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+# function to compute coefficient
+ac <- function(x) {
+  agnes(df, method = x)$ac
+}
+map_dbl(m, ac)
+```
+## Visualizing the dendogram 
+```{r}
+hc3 <- agnes(df, method = "ward")
+pltree(hc3, cex = 0.6, hang = -1, main = "Dendrogram of agnes") 
+```
+## Divisive Hierarchical Clustering 
+```{r}
+# compute divisive hierarchical clustering
+hc4 <- diana(df)
+# Divise coefficient; amount of clustering structure found
+hc4$dc
+```
+# plot dendrogram
+```{r}
+pltree(hc4, cex = 0.6, hang = -1, main = "Dendrogram of diana")
+```
+## Identifying sub-groups 
+```{r}
+# Ward's method
+hc5 <- hclust(d, method = "ward.D2" )
+# Cut tree into 4 groups
+sub_grp <- cutree(hc5, k = 4)
+# Number of members in each cluster
+table(sub_grp)
+```
+## Usign cutree output to ass the luster each observatyions belongs to in original data
+```{r}
+USArrests %>%
+  mutate(cluster = sub_grp) %>%
+  head
+```
+## Adding borders to the cluster dendogram
+```{r}
+plot(hc5, cex = 0.6)
+rect.hclust(hc5, k = 4, border = 2:5)
+```
+## Visualizing the result in a scatterplot
+```{r}
+fviz_cluster(list(data = df, cluster = sub_grp))
+```
+## Using cutree with agnes and diana
+```{r}
+# Cut agnes() tree into 4 groups
+hc_a <- agnes(df, method = "ward")
+cutree(as.hclust(hc_a), k = 4)
+# Cut diana() tree into 4 groups
+hc_d <- diana(df)
+cutree(as.hclust(hc_d), k = 4)
+```
+## Plotting teo dendograms using tanglegram()
+```{r}
+# Compute distance matrix
+res.dist <- dist(df, method = "euclidean")
+# Compute 2 hierarchical clusterings
+hc1 <- hclust(res.dist, method = "complete")
+hc2 <- hclust(res.dist, method = "ward.D2")
+# Create two dendrograms
+dend1 <- as.dendrogram (hc1)
+dend2 <- as.dendrogram (hc2)
+tanglegram(dend1, dend2)
+```
+## Customizing the dendograms
+```{r}
+dend_list <- dendlist(dend1, dend2)
+tanglegram(dend1, dend2,
+  highlight_distinct_edges = FALSE, # Turn-off dashed lines
+  common_subtrees_color_lines = FALSE, # Turn-off line colors
+  common_subtrees_color_branches = TRUE, # Color common branches 
+  main = paste("entanglement =", round(entanglement(dend_list), 2))
+  )
+```
+## Determining optimal clusters
+## 1. Elbow method
+```{r}
+fviz_nbclust(df, FUN = hcut, method = "wss")
+```
+## 2. Average Silhouette method
+```{r}
+fviz_nbclust(df, FUN = hcut, method = "silhouette")
+```
+## 3. Gap Statistic method
+```{r}
+gap_stat <- clusGap(df, FUN = hcut, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+```
+## Illustrating the K-means algorithm
+```{r}
+ set.seed(1234)
+x <- rnorm(12, mean = rep(1:3, each = 4), sd = 0.2)
+y <- rnorm(12, mean = rep(c(1, 2, 1), each = 4), sd = 0.2)
+plot(x, y, col = "blue", pch = 19, cex = 2)
+text(x + 0.05, y + 0.05, labels = as.character(1:12))
+```
+## USing the kmeans() functions
+```{r}
+dataFrame <- data.frame(x, y)
+kmeansObj <- kmeans(dataFrame, centers = 3)
+names(kmeansObj)
+```
+## Cluster element of the list
+```{r}
+kmeansObj$cluster
+```
+## Building heatmaps from K-means solutions
+```{r}
+set.seed(1234)
+dataMatrix <- as.matrix(dataFrame)[sample(1:12), ]
+kmeansObj <- kmeans(dataMatrix, centers = 3)
+kmeansObj
+```
+## Plotting the heatmap
+```{r}
+par(mfrow = c(1, 2))
+image(t(dataMatrix)[, nrow(dataMatrix):1], yaxt = "n", main = "Original Data")
+image(t(dataMatrix)[, order(kmeansObj$cluster)], yaxt = "n", main = "Clustered Data")
+```
+
+
+##          PRINCIPAL COMPONENT ANALYSIS (PCA)
+
+## Loading the dataset
+```{r}
+data(mtcars)
+```
+## Creating a PCA object
+```{r}
+mtcars.pca <- prcomp(mtcars[,c(1:7,10,11)], center = TRUE, scale. = TRUE)
+summary(mtcars.pca)
+```
+## Viewing PCA object using str()
+```{r}
+str(mtcars.pca)
+```
+## Plotting PCA
+```{r}
+install.packages("devtools")
+library(devtools)
+install_github("vqv/ggbiplot", force = TRUE)
+library(ggbiplot)
+```
+## Calling ggbiplot on PCA
+```{r}
+library(ggbiplot)
+ggbiplot(mtcars.pca)
+```
+## Providing labels to the plot
+```{r}
+ggbiplot(mtcars.pca, labels=rownames(mtcars))
+```
+## Interpreting the results
+```{r}
+mtcars.country <- c(rep("Japan", 3), rep("US",4), rep("Europe", 7),rep("US",3), "Europe", rep("Japan", 3), rep("US",4), rep("Europe", 3), "US", rep("Europe", 3))
+ggbiplot(mtcars.pca,ellipse=TRUE,  labels=rownames(mtcars), groups=mtcars.country)
+```
+## Illustrating PC3 and PC4
+```{r}
+ggbiplot(mtcars.pca,ellipse=TRUE,choices=c(3,4),   labels=rownames(mtcars), groups=mtcars.country)
+```
+## Graphical parameters with ggbiplot
+```{r}
+ggbiplot(mtcars.pca,ellipse=TRUE,circle=TRUE, labels=rownames(mtcars), groups=mtcars.country)
+```
+## Scaling the samples and variables
+```{r}
+ggbiplot(mtcars.pca,ellipse=TRUE,obs.scale = 1, var.scale = 1,  labels=rownames(mtcars), groups=mtcars.country)
+```
+## Removing the arrows in the plot
+```{r}
+ggbiplot(mtcars.pca,ellipse=TRUE,obs.scale = 1, var.scale = 1,var.axes=FALSE,   labels=rownames(mtcars), groups=mtcars.country)
+```
+## Customizing the plot 
+```{r}
+ggbiplot(mtcars.pca,ellipse=TRUE,obs.scale = 1, var.scale = 1,  labels=rownames(mtcars), groups=mtcars.country) +
+  scale_colour_manual(name="Origin", values= c("forest green", "red3", "dark blue"))+
+  ggtitle("PCA of mtcars dataset")+
+  theme_minimal()+
+  theme(legend.position = "bottom")
+```
+## Adding a new sample 
+```{r}
+spacecar <- c(1000,60,50,500,0,0.5,2.5,0,1,0,0)
+mtcarsplus <- rbind(mtcars, spacecar)
+mtcars.countryplus <- c(mtcars.country, "Jupiter")
+mtcarsplus.pca <- prcomp(mtcarsplus[,c(1:7,10,11)], center = TRUE,scale. = TRUE)
+ggbiplot(mtcarsplus.pca, obs.scale = 1, var.scale = 1, ellipse = TRUE, circle = FALSE, var.axes=TRUE, labels=c(rownames(mtcars), "spacecar"), groups=mtcars.countryplus)+
+  scale_colour_manual(name="Origin", values= c("forest green", "red3", "violet", "dark blue"))+
+  ggtitle("PCA of mtcars dataset, with extra sample added")+
+  theme_minimal()+
+  theme(legend.position = "bottom")
+```
+## Projecting a new smaple onto the original PCA
+```{r}
+s.sc <- scale(t(spacecar[c(1:7,10,11)]), center= mtcars.pca$center)
+s.pred <- s.sc %*% mtcars.pca$rotation
+mtcars.plusproj.pca <- mtcars.pca
+mtcars.plusproj.pca$x <- rbind(mtcars.plusproj.pca$x, s.pred)
+ggbiplot(mtcars.plusproj.pca, obs.scale = 1, var.scale = 1, ellipse = TRUE, circle = FALSE, var.axes=TRUE, labels=c(rownames(mtcars), "spacecar"), groups=mtcars.countryplus)+
+  scale_colour_manual(name="Origin", values= c("forest green", "red3", "violet", "dark blue"))+
+  ggtitle("PCA of mtcars dataset, with extra sample projected")+
+  theme_minimal()+
+  theme(legend.position = "bottom")
+```
+
+##        Chapter 13 - Model Diagnostics
+## checking model assumptions
+```{r}
+sim_1 = function(sample_size = 500) {
+  x = runif(n = sample_size) * 5
+  y = 3 + 5 * x + rnorm(n = sample_size, mean = 0, sd = 1)
+  data.frame(x, y)
+}
+sim_2 = function(sample_size = 500) {
+  x = runif(n = sample_size) * 5
+  y = 3 + 5 * x + rnorm(n = sample_size, mean = 0, sd = x)
+  data.frame(x, y)
+}
+sim_3 = function(sample_size = 500) {
+  x = runif(n = sample_size) * 5
+  y = 3 + 5 * x ^ 2 + rnorm(n = sample_size, mean = 0, sd = 5)
+  data.frame(x, y)
+}
+```
+## Determining what a good fitted vs. residual plots look like
+```{r}
+set.seed(42)
+sim_data_1 = sim_1()
+head(sim_data_1)
+```
+## Adding an abline to the model 
+```{r}
+plot(y ~ x, data = sim_data_1, col = "grey", pch = 20,
+     main = "Data from Model 1")
+fit_1 = lm(y ~ x, data = sim_data_1)
+abline(fit_1, col = "darkorange", lwd = 3)
+```
+```{r}
+plot(fitted(fit_1), resid(fit_1), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "Data from Model 1")
+abline(h = 0, col = "darkorange", lwd = 2)
+```
+## Plotting model 2
+```{r}
+set.seed(42)
+sim_data_2 = sim_2()
+fit_2 = lm(y ~ x, data = sim_data_2)
+plot(y ~ x, data = sim_data_2, col = "grey", pch = 20,
+     main = "Data from Model 2")
+abline(fit_2, col = "darkorange", lwd = 3)
+```
+## Using multiple regression to fit the model
+```{r}
+plot(fitted(fit_2), resid(fit_2), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "Data from Model 2")
+abline(h = 0, col = "darkorange", lwd = 2)
+```
+## Plotting assumption model 3
+```{r}
+set.seed(42)
+sim_data_3 = sim_3()
+fit_3 = lm(y ~ x, data = sim_data_3)
+plot(y ~ x, data = sim_data_3, col = "grey", pch = 20,
+     main = "Data from Model 3")
+abline(fit_3, col = "darkorange", lwd = 3)
+```
+## fitting model 3 using multiple regression 
+```{r}
+plot(fitted(fit_3), resid(fit_3), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "Data from Model 3")
+abline(h = 0, col = "darkorange", lwd = 2)
+```
+## Using lmtest package to perform the Breusch-Pagan Test
+## installing the lmtest packages
+```{r}
+install.packages("lmtest")
+library(lmtest)
+```
+## fitting the first model
+```{r}
+bptest(fit_1)
+```
+## fitting the second model
+```{r}
+bptest(fit_2)
+```
+## fitting third model
+```{r}
+bptest(fit_3)
+```
+## Assessing the mornality function using histogram
+```{r}
+par(mfrow = c(1, 3))
+hist(resid(fit_1),
+     xlab   = "Residuals",
+     main   = "Histogram of Residuals, fit_1",
+     col    = "darkorange",
+     border = "dodgerblue",
+     breaks = 20)
+hist(resid(fit_2),
+     xlab   = "Residuals",
+     main   = "Histogram of Residuals, fit_2",
+     col    = "darkorange",
+     border = "dodgerblue",
+     breaks = 20)
+hist(resid(fit_3),
+     xlab   = "Residuals",
+     main   = "Histogram of Residuals, fit_3",
+     col    = "darkorange",
+     border = "dodgerblue",
+     breaks = 20)
+```
+## Making QQ plots to access normality of errors
+```{r}
+qqnorm(resid(fit_1), main = "Normal Q-Q Plot, fit_1", col = "darkgrey")
+qqline(resid(fit_1), col = "dodgerblue", lwd = 2)
+```
+## More QQ plots
+```{r}
+qq_plot = function(e) {
+
+  n = length(e)
+  normal_quantiles = qnorm(((1:n - 0.5) / n))
+  # normal_quantiles = qnorm(((1:n) / (n + 1)))
+
+  # plot theoretical verus observed quantiles
+  plot(normal_quantiles, sort(e),
+       xlab = c("Theoretical Quantiles"),
+       ylab = c("Sample Quantiles"),
+       col = "darkgrey")
+  title("Normal Q-Q Plot")
+
+  # calculate line through the first and third quartiles
+  slope     = (quantile(e, 0.75) - quantile(e, 0.25)) / (qnorm(0.75) - qnorm(0.25))
+  intercept = quantile(e, 0.25) - slope * qnorm(0.25)
+
+  # add to existing plot
+  abline(intercept, slope, lty = 2, lwd = 2, col = "dodgerblue")
+}
+```
+## Checking the linearity and constant variance assumptions
+```{r}
+set.seed(420)
+x = rnorm(100, mean = 0 , sd = 1)
+par(mfrow = c(1, 2))
+qqnorm(x, col = "darkgrey")
+qqline(x, lty = 2, lwd = 2, col = "dodgerblue")
+qq_plot(x)
+```
+## Create a QQ plot from normal distribution with different sample sizes
+```{r}
+par(mfrow = c(1, 3))
+set.seed(420)
+qq_plot(rnorm(10))
+qq_plot(rnorm(25))
+qq_plot(rnorm(100))
+```
+## Simulate data from the t distribution with small degrees of freedom and sample sizes
+```{R}
+par(mfrow = c(1, 3))
+set.seed(420)
+qq_plot(rt(10, df = 4))
+qq_plot(rt(25, df = 4))
+qq_plot(rt(100, df = 4))
+```
+## Simulate data from an exponential distribution
+```{r}
+par(mfrow = c(1, 3))
+set.seed(420)
+qq_plot(rexp(10))
+qq_plot(rexp(25))
+qq_plot(rexp(100))
+```
+## QQ plot normal distribution for fit1
+```{r}
+qqnorm(resid(fit_1), main = "Normal Q-Q Plot, fit_1", col = "darkgrey")
+qqline(resid(fit_1), col = "dodgerblue", lwd = 2)
+```
+## QQ plot normal distribution fit2
+```{r}
+qqnorm(resid(fit_2), main = "Normal Q-Q Plot, fit_2", col = "darkgrey")
+qqline(resid(fit_2), col = "dodgerblue", lwd = 2)
+```
+## QQ plot normal distribution fit3
+```{r}
+qqnorm(resid(fit_3), main = "Normal Q-Q Plot, fit_3", col = "darkgrey")
+qqline(resid(fit_3), col = "dodgerblue", lwd = 2)
+```
+## Using the Shapiro-Wilk Test
+```{r}
+set.seed(42)
+shapiro.test(rnorm(25))
+shapiro.test(rexp(25))
+shapiro.test(resid(fit_1))
+shapiro.test(resid(fit_2))
+shapiro.test(resid(fit_3))
+```
+## Example linear models
+```{r}
+ar(x, mfrow = c(1, 3))
+set.seed(42)
+ex_data  = data.frame(x = 1:10,
+                      y = 10:1 + rnorm(n = 10))
+ex_model = lm(y ~ x, data = ex_data)
+
+# low leverage, large residual, small influence
+point_1 = c(5.4, 11)
+ex_data_1 = rbind(ex_data, point_1)
+model_1 = lm(y ~ x, data = ex_data_1)
+plot(y ~ x, data = ex_data_1, cex = 2, pch = 20, col = "grey",
+     main = "Low Leverage, Large Residual, Small Influence")
+points(x = point_1[1], y = point_1[2], pch = 1, cex = 4, col = "black", lwd = 2)
+abline(ex_model, col = "dodgerblue", lwd = 2)
+abline(model_1, lty = 2, col = "darkorange", lwd = 2)
+legend("bottomleft", c("Original Data", "Added Point"),
+       lty = c(1, 2), col = c("dodgerblue", "darkorange"))
+
+# high leverage, small residual, small influence
+point_2 = c(18, -5.7)
+ex_data_2 = rbind(ex_data, point_2)
+model_2 = lm(y ~ x, data = ex_data_2)
+plot(y ~ x, data = ex_data_2, cex = 2, pch = 20, col = "grey",
+     main = "High Leverage, Small Residual, Small Influence")
+points(x = point_2[1], y = point_2[2], pch = 1, cex = 4, col = "black", lwd = 2)
+abline(ex_model, col = "dodgerblue", lwd = 2)
+abline(model_2, lty = 2, col = "darkorange", lwd = 2)
+legend("bottomleft", c("Original Data", "Added Point"),
+       lty = c(1, 2), col = c("dodgerblue", "darkorange"))
+
+# high leverage, large residual, large influence
+point_3 = c(14, 5.1)
+ex_data_3 = rbind(ex_data, point_3)
+model_3 = lm(y ~ x, data = ex_data_3)
+plot(y ~ x, data = ex_data_3, cex = 2, pch = 20, col = "grey", ylim = c(-3, 12),
+     main = "High Leverage, Large Residual, Large Influence")
+points(x = point_3[1], y = point_3[2], pch = 1, cex = 4, col = "black", lwd = 2)
+abline(ex_model, col = "dodgerblue", lwd = 2)
+abline(model_3, lty = 2, col = "darkorange", lwd = 2)
+legend("bottomleft", c("Original Data", "Added Point"),
+       lty = c(1, 2), col = c("dodgerblue", "darkorange"))
+```
+## Finding the slope of the regression
+```{r}
+coef(ex_model)[2]
+```
+## When a small point is added, the coefficient changes
+```{r}
+coef(model_1)[2]
+```
+```{r}
+coef(model_2)[2]
+```
+```{r}
+coef(model_3)[2]
+```
+## Finding leverages 
+```{r}
+lev_ex = data.frame(
+  x1 = c(0, 11, 11, 7, 4, 10, 5, 8),
+  x2 = c(1, 5, 4, 3, 1, 4, 4, 2),
+  y  = c(11, 15, 13, 14, 0, 19, 16, 8))
+plot(x2 ~ x1, data = lev_ex, cex = 2)
+points(7, 3, pch = 20, col = "red", cex = 2)
+```
+## creating a matrix
+```{r}
+X = cbind(rep(1, 8), lev_ex$x1, lev_ex$x2)
+H = X %*% solve(t(X) %*% X) %*% t(X)
+diag(H)
+```
+## Finding the sum of the three diagonal parameters
+```{r}
+sum(diag(H))
+```
+## Finding the sum of the three diagonal parameters using hatvalues
+```{r}
+lev_fit = lm(y ~ ., data = lev_ex)
+hatvalues(lev_fit)
+```
+## Finding the intercept
+```{r}
+coef(lev_fit)
+```
+## Modifying the coefficient to the highest point of leverage
+```{r}
+which.max(hatvalues(lev_fit))
+```
+```{r}
+lev_ex[which.max(hatvalues(lev_fit)),]
+```
+## Modiying the original y-value to get a y values of 20
+```{r}
+lev_ex_1 = lev_ex
+lev_ex_1$y[1] = 20
+lm(y ~ ., data = lev_ex_1)
+```
+## Modifying the y value with the lowest point of leverage
+```{r}
+which.min(hatvalues(lev_fit))
+```
+```{r}
+lev_ex[which.min(hatvalues(lev_fit)),]
+```
+## Modifying the y value from 14 to 30
+```{r}
+lev_ex_2 = lev_ex
+lev_ex_2$y[4] = 30
+lm(y ~ ., data = lev_ex_2)
+```
+```{r}
+mean(lev_ex$x1)
+mean(lev_ex$x2)
+lev_ex[4,]
+```
+## calculating the leverages for our three original dataplots
+```{r}
+hatvalues(model_1)
+hatvalues(model_2)
+hatvalues(model_3)
+```
+## Finding the largest leverage
+```{r}
+hatvalues(model_1) > 2 * mean(hatvalues(model_1))
+hatvalues(model_2) > 2 * mean(hatvalues(model_2))
+hatvalues(model_3) > 2 * mean(hatvalues(model_3))
+```
+## Finding Outliers for model1
+```{r}
+resid(model_1)
+rstandard(model_1)
+rstandard(model_1)[abs(rstandard(model_1)) > 2]
+```
+## Finding Outliers for model2
+```{r}
+resid(model_2)
+rstandard(model_2)
+rstandard(model_2)[abs(rstandard(model_2)) > 2]
+```
+## Finding Outliers for model3
+```{r}
+resid(model_3)
+rstandard(model_3)
+rstandard(model_3)[abs(rstandard(model_3)) > 2]
+```
+##Calculating Cooks distance to find influence
+```{r}
+cooks.distance(model_1)[11] > 4 / length(cooks.distance(model_1))
+cooks.distance(model_2)[11] > 4 / length(cooks.distance(model_2))
+cooks.distance(model_3)[11] > 4 / length(cooks.distance(model_3))
+```
+## Good diagnostics
+```{r}
+mpg_hp_add = lm(mpg ~ hp + am, data = mtcars)
+plot(fitted(mpg_hp_add), resid(mpg_hp_add), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residual",
+     main = "mtcars: Fitted versus Residuals")
+abline(h = 0, col = "darkorange", lwd = 2)
+```
+
+## Breutsch-Pagan Test
+```{r}
+bptest(mpg_hp_add)
+```
+## QQ plots
+```{r}
+qqnorm(resid(mpg_hp_add), col = "darkgrey")
+qqline(resid(mpg_hp_add), col = "dodgerblue", lwd = 2)
+```
+## Shapiro-Wilk Test
+```{r}
+shapiro.test(resid(mpg_hp_add))
+sum(hatvalues(mpg_hp_add) > 2 * mean(hatvalues(mpg_hp_add)))
+sum(abs(rstandard(mpg_hp_add)) > 2)
+```
+## Determining if the results are influential
+```{r}
+cd_mpg_hp_add = cooks.distance(mpg_hp_add)
+sum(cd_mpg_hp_add > 4 / length(cd_mpg_hp_add))
+large_cd_mpg = cd_mpg_hp_add > 4 / length(cd_mpg_hp_add)
+cd_mpg_hp_add[large_cd_mpg]
+coef(mpg_hp_add)
+```
+## Determining how much teh coefficients chnage if moved
+```{r}
+mpg_hp_add_fix = lm(mpg ~ hp + am,
+                    data = mtcars,
+                    subset = cd_mpg_hp_add <= 4 / length(cd_mpg_hp_add))
+coef(mpg_hp_add_fix)
+```
+## Plotting 
+```{r}
+par(mfrow = c(2, 2))
+plot(mpg_hp_add)
+```
+
+
+
